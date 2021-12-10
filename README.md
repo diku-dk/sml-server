@@ -1,7 +1,7 @@
 # sml-server [![CI](https://github.com/diku-dk/sml-server/workflows/CI/badge.svg)](https://github.com/diku-dk/sml-server/actions)
 
-This Standard ML package provides the basics for running an HTTP/1.0
-web server for which requests are handled by Standard ML code.
+This Standard ML package provides the basics for running an HTTP web
+server for which requests are handled by Standard ML code.
 
 The functionality is based on the
 [Http](https://github.com/diku-dk/sml-http/blob/main/lib/github.com/diku-dk/sml-http/HTTP.sig)
@@ -10,7 +10,7 @@ package and utilises the inet-socket functionality of the Standard ML
 basis library.
 
 __Notice__: This code is work in progress and the aim is for the
-library to implement most of the features of [SMLserver](), a web
+library to implement most of the features of [SMLserver](http://smlserver.org), a web
 server Apache module. On the contrary to the original SMLserver
 design, the present code makes it possible to run native code for
 servicing requests.
@@ -21,6 +21,22 @@ servicing requests.
 
   - **signature** [`SERVER`](lib/github.com/diku-dk/sml-server/server.sig)
   - **structure** `Server` :> `SERVER`
+
+## Demonstration
+
+An example use of the server functionality is available in
+[test1.sml](lib/github.com/diku-dk/sml-server/test/test1.sml). After
+the [mlb-file](lib/github.com/diku-dk/sml-server/test/test1.mlb) is
+compiled, the executable acts as a web server, which can be started
+from the command-line:
+
+```
+  $ test1.exe
+  HTTP/1.1 server started on port 8000
+  Use C-c to exit the server loop...
+```
+
+Help is available by passing the `--help` command-line option.
 
 ## Use of the package
 
