@@ -1,0 +1,72 @@
+# sml-server [![CI](https://github.com/diku-dk/sml-server/workflows/CI/badge.svg)](https://github.com/diku-dk/sml-server/actions)
+
+This Standard ML package provides the basics for running an HTTP/1.0
+web server for which requests are handled by Standard ML code.
+
+The functionality is based on the
+[Http](https://github.com/diku-dk/sml-http/blob/main/lib/github.com/diku-dk/sml-http/HTTP.sig)
+library from the [sml-http](https://github.com/diku-dk/sml-http)
+package and utilises the inet-socket functionality of the Standard ML
+basis library.
+
+__Notice__: This code is work in progress and the aim is for the
+library to implement most of the features of [SMLserver](), a web
+server Apache module. On the contrary to the original SMLserver
+design, the present code makes it possible to run native code for
+servicing requests.
+
+## Overview of MLB files
+
+- `lib/github.com/diku-dk/sml-server/server.mlb`:
+
+  - **signature** [`SERVER`](lib/github.com/diku-dk/sml-server/server.sig)
+  - **structure** `Server` :> `SERVER`
+
+## Use of the package
+
+This library is set up to work well with the SML package manager
+[smlpkg](https://github.com/diku-dk/smlpkg).  To use the package, in
+the root of your project directory, execute the command:
+
+```
+$ smlpkg add github.com/diku-dk/sml-server
+```
+
+This command will add a _requirement_ (a line) to the `sml.pkg` file in your
+project directory (and create the file, if there is no file `sml.pkg`
+already).
+
+To download the library into the directory
+`lib/github.com/diku-dk/sml-server` (along with other necessary
+libraries), execute the command:
+
+```
+$ smlpkg sync
+```
+
+You can now reference the `mlb`-file using relative paths from within
+your project's `mlb`-files.
+
+Notice that you can choose either to treat the downloaded package as
+part of your own project sources (vendoring) or you can add the
+`sml.pkg` file to your project sources and make the `smlpkg sync`
+command part of your build process.
+
+## Try it!
+
+The parser combinator library works with either
+[MLton](http://mlton.org) or [MLKit](http://elsman.com/mlkit/).
+
+Now write
+
+    $ smlpkg sync
+
+Then simply write `make test` in your shell.
+
+To use the MLKit as a compiler, write instead:
+
+    $ MLCOMP=mlkit make clean test
+
+## Authors
+
+Copyright (c) 2015-2021 Martin Elsman, University of Copenhagen.

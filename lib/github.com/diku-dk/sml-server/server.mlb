@@ -1,0 +1,9 @@
+local
+  $(SML_LIB)/basis/basis.mlb
+  $(SML_LIB)/basis/socket.mlb
+  cmdargs.sml
+in
+  ../sml-http/http.mlb
+  server.sig
+  server.sml
+end
