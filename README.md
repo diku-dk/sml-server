@@ -70,8 +70,8 @@ command part of your build process.
 
 ## Try it!
 
-The parser combinator library works with either
-[MLton](http://mlton.org) or [MLKit](http://elsman.com/mlkit/).
+The library works with either [MLton](http://mlton.org) or
+[MLKit](http://elsman.com/mlkit/).
 
 Now write
 
