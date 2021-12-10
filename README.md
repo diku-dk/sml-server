@@ -31,7 +31,7 @@ compiled, the executable acts as a web server, which can be started
 from the command-line:
 
 ```
-  $ test1.exe
+  $ ./test1.exe
   HTTP/1.1 server started on port 8000
   Use C-c to exit the server loop...
 ```
@@ -73,15 +73,16 @@ command part of your build process.
 The library works with either [MLton](http://mlton.org) or
 [MLKit](http://elsman.com/mlkit/).
 
-Now write
+After checking out the sources, write
 
     $ smlpkg sync
 
-Then simply write `make test` in your shell.
+Then simply write `make test` in your shell (assuming
+[MLKit](http://elsman.com/mlkit/) is installed).
 
-To use the MLKit as a compiler, write instead:
+To use MLton as a compiler, write instead:
 
-    $ MLCOMP=mlkit make clean test
+    $ MLCOMP=mlton make clean test
 
 ## Authors
 
