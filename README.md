@@ -4,7 +4,7 @@ This Standard ML package provides the basics for running an HTTP web
 server for which requests are handled by Standard ML code.
 
 The functionality is based on the
-[Http](https://github.com/diku-dk/sml-http/blob/main/lib/github.com/diku-dk/sml-http/HTTP.sig)
+[Http](https://github.com/diku-dk/sml-http/blob/main/lib/github.com/diku-dk/sml-http/http.sig)
 library from the [sml-http](https://github.com/diku-dk/sml-http)
 package and utilises the inet-socket functionality of the Standard ML
 basis library.

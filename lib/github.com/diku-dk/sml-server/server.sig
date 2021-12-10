@@ -5,18 +5,19 @@ signature SERVER = sig
   structure Conn     : SERVER_CONN
   structure Cookie   : SERVER_COOKIE
   structure Info     : SERVER_INFO
-
+*)
   val encodeUrl      : string -> string
   val decodeUrl      : string -> string
   val buildUrl       : string -> (string * string) list -> string
-*)
 
   type conn   (* connection socket *)
   type ctx    (* context including parsed request and state *)
 
   type filepath = string
 
+  exception InternalServerError
   exception BadRequest
+
   val recvRequest  : conn -> ctx                       (* May raise BadRequest *)
   val request      : ctx -> Http.Request.t
   val sendOK       : ctx -> string -> unit
@@ -36,14 +37,13 @@ signature SERVER = sig
 
 end
 
-
 (**
 
 Description:
 
-[returnRedirect loc] sends redirection HTTP response to client (status
-code 302), with information that the client should request location
-loc. May raise MissingConnection.
+[sendRedirect ctx loc] sends redirection HTTP response to client
+(status code 302), with information that the client should request
+location loc. May raise MissingConnection.
 
 [encodeUrl s] returns an encoded version of the argument s as URL
 query data. All characters except the alphanumerics are encoded as
@@ -53,43 +53,42 @@ used to append arguments to a URL as query data following a `?'.
 [decodeUrl s] decodes data s that was encoded as URL query data. The
 decoded data is returned.
 
-[returnFileMime mimetype file] returns the entire contents of the
+[sendFileMime ctx mimetype file] returns the entire contents of the
 given file to the client. In addition to setting the HTTP status
 response line to 200 and the Content-Type header from the given
 parameter, the function also uses the stat system call to generate the
 appropriate Last-Modified and Content-Length headers. May raise
 Fail(msg) if file cannot be accessed.
 
-[returnFile file] as returnFileMime, but gets the Content-Type
-(mimetype) argument from calling the function Web.Mime.getMime with
-the given file as parameter.
+[sendFile ctx file] as sendFileMime, but gets the Content-Type
+(mimetype) argument from calling the function Http.Mime.fromExt with
+the given file's extension as parameter.
 
-[buildUrl u l] constructs a link to the URL u with the form variable
-pairs l appended to u?, delimited by &, and with the form values URL
-encoded.
+[buildUrl u l] adds query arguments (as they appear in l) to the base
+url u by appending the the character '?' and URL-encoded versions of
+the query arguments, deliminated by the character '&'.
 
-[run handler] starts a webserver. It reads configuration arguments
-from the command line according to the following specification:
+[start handler] starts a server that will serve requests using the
+supplied handler. The handler takes a connection socket as argument,
+which can be used for receiving the request and for supplying a
+response.
 
---port N : Start the web server on port N.
+The function reads configuration arguments from the command line
+according to the following specification:
 
---log f  : Log messages to file f. The default is error.log.
+--port N  : Start the web server on port N.
 
---log-level N
+--log S   : Log messages to file S. The default is stdout.
 
-         : Log messages according to log severity level N.
+--version : Print version information.
 
---P N    : Prefork N processes.
+--help    : Print help information.
 
-If handler returns a response value, the response is send to the
-client. Otherwise, run will attempt to serve the request as follows:
+If handler raises the exception BadRequest or the exception
+InternalServerError, the start function will take care of sending an
+appropriate response to the client (status code
+Http.StatusCode.BadRequest or Http.StatusCode.InternalServerError).
 
-1. If the request is a GET request for a file on the server (relative
-   to the folder in which the server is started, the file is
-   served. The server replies with a Bad Request response if '..'
-   occurs in the file path part of the request or if the file path
-   denotes a folder.
-
-2. ... multi-part file uploads...
+The connection attached to conn is closed when the handler returns.
 
 *)
