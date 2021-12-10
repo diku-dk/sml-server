@@ -10,8 +10,8 @@ test: lib/github.com/diku-dk/sml-http
 
 .PHONY: clean
 clean:
-	$(MAKE) -C lib/github.com/diku-dk/sml-http clean
-	$(MAKE) -C lib/github.com/diku-dk/sml-parse clean
+	($(MAKE) -C lib/github.com/diku-dk/sml-http clean; exit 0)
+	($(MAKE) -C lib/github.com/diku-dk/sml-parse clean; exit 0)
 	$(MAKE) -C lib/github.com/diku-dk/sml-server clean
 	rm -rf MLB *~ .*~
 
