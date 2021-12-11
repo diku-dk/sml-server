@@ -151,12 +151,17 @@ fun recvRequest (conn as (sock,sa,opts):conn) : ctx =
 
 structure Resp : SERVER_RESP = struct
   type ctx = ctx
-  fun add_header (ctx:ctx) p =
+
+  type filepath = string
+
+  type sc = Http.StatusCode.t
+
+  fun addHeader (ctx:ctx) p =
       #resp_headers ctx := (p :: (!(#resp_headers ctx)))
   fun sendOK (ctx:ctx) (body:string) : unit =
       let val bytes = size body
           val line = {version=Version.HTTP_1_1, status=StatusCode.OK}
-          val () = add_header ctx ("Context-Length",Int.toString bytes)
+          val () = addHeader ctx ("Context-Length",Int.toString bytes)
           val resp = {line=line, headers=rev(!(#resp_headers ctx)), body=SOME body}
       in accesslog (#conn ctx) (SOME(#req ctx)) (StatusCode.OK, bytes)
        ; sendResponseClose (#1(#conn ctx)) resp
@@ -169,8 +174,8 @@ structure Cookie : SERVER_COOKIE = struct
   fun getCookie ctx = Cookie.getCookie (getCookies ctx)
   fun getCookieValue ctx = Cookie.getCookieValue (getCookies ctx)
   type cookiedata = Cookie.cookiedata
-  fun setCookie ctx = Cookie.setCookie (Resp.add_header ctx)
-  fun deleteCookie ctx = Cookie.deleteCookie (Resp.add_header ctx)
+  fun setCookie ctx = Cookie.setCookie (Resp.addHeader ctx)
+  fun deleteCookie ctx = Cookie.deleteCookie (Resp.addHeader ctx)
 end
 
 structure Conn : SERVER_CONN = struct
