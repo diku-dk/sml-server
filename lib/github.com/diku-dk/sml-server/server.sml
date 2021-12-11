@@ -4,90 +4,12 @@ struct
 
 fun debug f = ()
 
-fun encodeUrl (s:string) : string =
-    let val len = CharVector.foldl (fn (c,n) =>
-                                        if Char.isAlphaNum c
-                                        then n+1 else n+3) 0 s
-        val a = CharArray.array(len,#"0")
-        val hex = "0123456789abcdef"
-    in CharVector.foldl (fn (c,i) =>
-                            if Char.isAlphaNum c
-                            then ( CharArray.update(a,i,c)
-                                 ; i+1 )
-                            else let val e = Char.ord c
-                                     val h1 = CharVector.sub(hex, e div 16)
-                                     val h2 = CharVector.sub(hex, e mod 16)
-                                 in CharArray.update(a, i, #"%")
-                                  ; CharArray.update(a, i+1, h1)
-                                  ; CharArray.update(a, i+2, h2)
-                                  ; i+3
-                                 end) 0 s
-     ; CharArray.vector a
-    end
+infix |>
+fun x |> f = f x
 
-fun hexDigitNum c =
-    let val v = Char.ord (Char.toLower c)
-    in if 48 <= v andalso v <= 57 then SOME(v - 48)
-       else if 97 <= v andalso v <= 102 then SOME(v - 97 + 10)
-       else NONE
-    end
-
-fun decodeUrl (s:string) : string =
-    let val (size,opt) =
-            CharVector.foldl
-                (fn (c,(i,ac)) =>
-                    case ac of
-                        NONE =>
-                        if c = #"%" then (i,SOME NONE)
-                        else (i+1,ac)
-                      | SOME NONE =>
-                        if Char.isHexDigit c then (i,SOME (SOME c))
-                        else (i + 2, NONE)
-                      | SOME (SOME c0) =>
-                        case (hexDigitNum c0, hexDigitNum c) of
-                            (SOME _, SOME _) => (i + 1, NONE)
-                          | _ => (i + 3, NONE)
-                ) (0,NONE) s
-        val size = case opt of
-                       SOME NONE => size+1
-                     | SOME (SOME _) => size+2
-                     | NONE => size
-        val a = CharArray.array(size,#"0")
-        val res =
-            CharVector.foldl
-                (fn (c,(i,ac)) =>
-                    case ac of
-                        NONE => if c = #"%" then (i,SOME NONE)
-                                else ( CharArray.update(a,i,c)
-                                     ; (i+1,ac) )
-                      | SOME NONE =>
-                        if Char.isHexDigit c then
-                          (i,SOME (SOME c))
-                        else
-                          ( CharArray.update(a,i,#"%")
-                          ; CharArray.update(a,i+1,c)
-                          ; (i + 2, NONE) )
-                      | SOME (SOME c0) =>
-                        case (hexDigitNum c0, hexDigitNum c) of
-                            (SOME v0, SOME v) =>
-                            ( CharArray.update(a,i,Char.chr (16 * v0 + v))
-                            ; (i + 1, NONE) )
-                          | _ =>
-                            ( CharArray.update(a,i,#"%")
-                            ; CharArray.update(a,i+1,c0)
-                            ; CharArray.update(a,i+2,c)
-                            ; (i + 3, NONE) )
-                ) (0,NONE) s
-        val () =  case res of
-                      (i,SOME (SOME c)) => ( CharArray.update(a,i,#"%")
-                                           ; CharArray.update(a,i+1,c) )
-                    | (i,SOME NONE) => CharArray.update(a,i,#"%")
-                    | (i,NONE) => ()
-    in CharArray.vector a
-    end
-
-fun buildUrl action hvs =
-    action ^ "?" ^ (String.concatWith "&" (List.map (fn (n,v) => n ^ "=" ^ encodeUrl v) hvs))
+exception InternalServerError
+exception BadRequest
+exception MissingConnection
 
 open Http
 
@@ -96,55 +18,61 @@ type opts = {logfile:string}
 type conn = Socket.active Socket.stream INetSock.sock * INetSock.sock_addr * opts
 type header = string * string
 type ctx = {conn:conn, req:Request.t, resp_headers:header list ref}
-type handler = conn -> unit
+
+structure Serialize : SERVER_SERIALIZE = ServerSerialize
+
+structure Util : SERVER_UTIL = ServerUtil
 
 type filepath = string
 
-fun request (ctx:ctx) = #req ctx
+structure Req : SERVER_REQ = struct
 
-fun req_path (ctx:ctx) : string =
-    case #uri (#line (request ctx)) of
-        Http.Uri.PATH {path,...} => path
-      | Http.Uri.URL {path,...} => path
-      | Http.Uri.AST => "*"
+  type ctx = ctx
+  fun full (ctx:ctx) = #req ctx
 
-fun req_method (ctx:ctx) : Request.method =
-    #method(#line(request ctx))
+  fun method (ctx:ctx) : Request.method =
+      #method(#line(full ctx))
 
-fun req_header (ctx:ctx) (k:string) : string option =
-    case List.find (fn (x,_) => x=k) (#headers(request ctx)) of
-        SOME (_,y) => SOME y
-      | NONE => NONE
+  fun path (ctx:ctx) : string =
+      case #uri (#line (full ctx)) of
+          Http.Uri.PATH {path,...} => path
+        | Http.Uri.URL {path,...} => path
+        | Http.Uri.AST => "*"
 
-fun query_of_uri (Uri.URL {query,...}) = query
-  | query_of_uri (Uri.PATH {query,...}) = query
-  | query_of_uri Uri.AST = ""
+  fun query_of_uri (Uri.URL {query,...}) = query
+    | query_of_uri (Uri.PATH {query,...}) = query
+    | query_of_uri Uri.AST = ""
 
-fun req_query (ctx:ctx) (k:string) : string option =
-    let val query = query_of_uri (#uri(#line(request ctx)))
-        val tokens = String.tokens (fn c => c = #"&") query
-        val pairs = List.foldr (fn (t,acc)=>
-                                   case String.tokens (fn c => c = #"=") t of
-                                       [k,v] => (k,v)::acc
-                                     | nil => acc
-                                     | [k] => (k,"")::acc
-                                     | k :: _ => (k,String.extract(t,size k,NONE)
-                                                    handle _ => "")::acc)
-                               nil tokens
-    in case List.find (fn (x,_) => x=k) pairs of
-           SOME (_,y) => SOME y
-         | NONE => NONE
-    end
+  fun query (ctx:ctx) (k:string) : string option =
+      let val query = query_of_uri (#uri(#line(full ctx)))
+          val tokens = String.tokens (fn c => c = #"&") query
+          val pairs = List.foldr (fn (t,acc)=>
+                                     case String.tokens (fn c => c = #"=") t of
+                                         [k,v] => (k,v)::acc
+                                       | nil => acc
+                                       | [k] => (k,"")::acc
+                                       | k :: _ => (k,String.extract(t,size k,NONE)
+                                                      handle _ => "")::acc)
+                                 nil tokens
+      in case List.find (fn (x,_) => x=k) pairs of
+             SOME (_,y) => SOME y
+           | NONE => NONE
+      end
 
-fun add_header (ctx:ctx) p =
-    #resp_headers ctx := (p :: (!(#resp_headers ctx)))
+  fun headers (ctx:ctx) : (string * string) list =
+      #headers(full ctx)
 
-fun fromString p s =
-    case p CharVectorSlice.getItem (CharVectorSlice.full s) of
-        SOME (v, s) =>
-        if CharVectorSlice.isEmpty s then v
-        else raise Fail "expecting empty slice"
-      | NONE => raise Fail "parsing failed"
+  fun header (ctx:ctx) (k:string) : string option =
+      case List.find (fn (x,_) => x=k) (headers ctx) of
+          SOME (_,y) => SOME y
+        | NONE => NONE
+
+  fun host (ctx:ctx) : string =
+      case header ctx "Host" of
+          SOME v => v
+        | NONE => ""
+
+end
 
 fun sendVecAll (sock, slc) =
     let val i = Socket.sendVec (sock, slc)
@@ -179,9 +107,6 @@ fun recvVecAll sock =
                                  Int.toString (Word8Vector.length vec) ^ "\n")
     in vec
     end
-
-exception InternalServerError
-exception BadRequest
 
 fun accesslog ((sock,sa,opts):conn) (req:Request.t option) (status,bytes) =
     let val logOnce =
@@ -224,47 +149,97 @@ fun recvRequest (conn as (sock,sa,opts):conn) : ctx =
          | NONE => raise BadRequest
     end
 
-fun sendOK (ctx:ctx) (body:string) : unit =
-    let val bytes = size body
-        val line = {version=Version.HTTP_1_1, status=StatusCode.OK}
-        val () = add_header ctx ("Context-Length",Int.toString bytes)
-        val resp = {line=line, headers=rev(!(#resp_headers ctx)), body=SOME body}
-    in accesslog (#conn ctx) (SOME(#req ctx)) (StatusCode.OK, bytes)
-     ; sendResponseClose (#1(#conn ctx)) resp
-    end
+structure Resp : SERVER_RESP = struct
+  type ctx = ctx
+  fun add_header (ctx:ctx) p =
+      #resp_headers ctx := (p :: (!(#resp_headers ctx)))
+  fun sendOK (ctx:ctx) (body:string) : unit =
+      let val bytes = size body
+          val line = {version=Version.HTTP_1_1, status=StatusCode.OK}
+          val () = add_header ctx ("Context-Length",Int.toString bytes)
+          val resp = {line=line, headers=rev(!(#resp_headers ctx)), body=SOME body}
+      in accesslog (#conn ctx) (SOME(#req ctx)) (StatusCode.OK, bytes)
+       ; sendResponseClose (#1(#conn ctx)) resp
+      end
+end
 
-fun runHandler (conn:conn) handler =
+structure Cookie : SERVER_COOKIE = struct
+  type ctx = ctx
+  fun getCookies (ctx:ctx) = Cookie.getCookies (#headers(#req ctx))
+  fun getCookie ctx = Cookie.getCookie (getCookies ctx)
+  fun getCookieValue ctx = Cookie.getCookieValue (getCookies ctx)
+  type cookiedata = Cookie.cookiedata
+  fun setCookie ctx = Cookie.setCookie (Resp.add_header ctx)
+  fun deleteCookie ctx = Cookie.deleteCookie (Resp.add_header ctx)
+end
+
+structure Conn : SERVER_CONN = struct
+  type ctx = ctx
+  fun sock (c:ctx) = #1(#conn c)
+
+  fun peer (c:ctx) : string =
+      ( sock c |> Socket.Ctl.getPeerName
+               |> (NetHostDB.toString o #1 o INetSock.fromAddr)
+      ) handle _ => raise MissingConnection
+
+  fun peerPort (c:ctx) : int =
+      ( sock c |> Socket.Ctl.getPeerName
+               |> (#2 o INetSock.fromAddr)
+      ) handle _ => raise MissingConnection
+
+  fun port (c:ctx) : int =
+      sock c |> Socket.Ctl.getSockName
+             |> (#2 o INetSock.fromAddr)
+
+  fun host (c:ctx) : string =
+      sock c |> Socket.Ctl.getSockName
+             |> (NetHostDB.toString o #1 o INetSock.fromAddr)
+
+  fun server () = NetHostDB.getHostName()
+
+  fun connected (c:ctx) =
+      ( sock c |> Socket.Ctl.getPeerName |> (fn _ => true)
+      ) handle _ => false
+end
+
+(** The server code **)
+
+type 'db handler = conn * 'db -> unit
+
+fun runHandler (conn:conn) (db:'db) (handler:'db handler) =
     let fun sendSC sc = ( accesslog conn NONE (sc,0)
                         ; sendStatusCodeClose (#1 conn) sc)
-    in handler conn
+    in handler (conn,db)
        handle BadRequest => sendSC StatusCode.BadRequest
-            | Interrupt => ()
             | _ => sendSC StatusCode.InternalServerError
     end
 
-fun acceptLoop (opts:opts) serv handler : unit =
+fun acceptLoop (opts:opts) serv (db:'db) (handler:'db handler) : unit =
     let val (sock, sa) = Socket.accept serv
         val () = debug (fn () => "Accepted a connection...\n")
         val conn : conn = (sock,sa,opts)
-        val () = runHandler conn handler
-    in acceptLoop opts serv handler
+        val () = runHandler conn db handler
+    in acceptLoop opts serv db handler
     end
 
-fun serve (opts:opts) (port:int) (handler:handler) : unit =
+fun serve (opts:opts) (port:int)
+          (connectdb: unit -> 'db)
+          (handler:'db handler) : unit =
     let val sock = INetSock.TCP.socket()
     in Socket.Ctl.setREUSEADDR (sock, true);
        Socket.bind(sock, INetSock.any port);
        Socket.listen(sock, 5);
        print ("HTTP/1.1 server started on port " ^ Int.toString port ^ "\n");
        print ("Use C-c to exit the server loop...\n");
-       acceptLoop opts sock handler
+       acceptLoop opts sock (connectdb()) handler
     end
 
 val version = "v0.0.1"
 val portDoc = ["Start the web server on port N."]
 val logDoc = ["Log messages to file S. The default is stdout."]
 
-fun start (handler:handler) : unit =
+fun startConnect (connectdb: unit -> 'db)
+                 (handler: 'db handler) : unit =
     let
       val getPort : unit -> int =
           CmdArgs.addInt ("port", 8000, SOME portDoc)
@@ -277,10 +252,13 @@ fun start (handler:handler) : unit =
 
     in case CmdArgs.processOptions() of
            nil => let val opts : opts = {logfile=getLog()}
-                  in serve opts (getPort()) handler
+                  in serve opts (getPort()) connectdb handler
                   end
         | _ => CmdArgs.printUsageExit OS.Process.failure
     end
+
+fun start (h: conn -> unit) : unit =
+    startConnect (fn () => ()) (fn (c,()) => h c)
 
 
 end

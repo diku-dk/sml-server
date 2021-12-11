@@ -10,7 +10,7 @@ fun test s p e f =
 
 fun id x = x
 
-open Server
+open Server.Util
 
 val () = test "url-encode-1" id "abc" (fn () => encodeUrl "abc")
 val () = test "url-encode-2" id "a%20bc" (fn () => encodeUrl "a bc")

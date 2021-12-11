@@ -1,12 +1,11 @@
 
-open Http
-
+local
 structure Page = struct
 fun return ctx t s =
     let val page =
             String.concat ["<html><head><title>", t, "</title></head>",
                            "<body>",s,"<p><i>Served by SMLserver</i></p></body></html>"]
-    in Server.sendOK ctx page
+    in Server.Resp.sendOK ctx page
     end
 end
 
@@ -19,9 +18,11 @@ fun sendTime ctx =
 
 fun handler conn =
     let val ctx = Server.recvRequest conn
-    in case Server.req_path ctx of
+    in case Server.Req.path ctx of
            "/time" => sendTime ctx
-         | _ => Server.sendOK ctx "Hello World"
+         | _ => Server.Resp.sendOK ctx "Hello World"
     end
 
+in
 val () = Server.start handler
+end

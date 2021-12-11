@@ -1,72 +1,33 @@
 
 signature SERVER = sig
 
-(*
-  structure Conn     : SERVER_CONN
-  structure Cookie   : SERVER_COOKIE
-  structure Info     : SERVER_INFO
-*)
-  val encodeUrl      : string -> string
-  val decodeUrl      : string -> string
-  val buildUrl       : string -> (string * string) list -> string
-
   type conn   (* connection socket *)
   type ctx    (* context including parsed request and state *)
 
-  type filepath = string
-
+  exception MissingConnection
   exception InternalServerError
   exception BadRequest
 
-  val recvRequest  : conn -> ctx                       (* May raise BadRequest *)
-  val request      : ctx -> Http.Request.t
-  val sendOK       : ctx -> string -> unit
+  structure Util      : SERVER_UTIL
+  structure Serialize : SERVER_SERIALIZE
+  structure Cookie    : SERVER_COOKIE     where type ctx = ctx
+  structure Req       : SERVER_REQ        where type ctx = ctx
+  structure Resp      : SERVER_RESP       where type ctx = ctx
+  structure Conn      : SERVER_CONN       where type ctx = ctx
 (*
-  val sendRedirect : ctx -> string -> unit
-  val sendFileMime : ctx -> Http.Mime.t -> filepath -> unit  (* May raise Fail *)
-  val sendFile     : ctx -> filepath -> unit
+  structure Info      : SERVER_INFO
 *)
-  val req_path     : ctx -> string
-  val req_method   : ctx -> Http.Request.method
-  val req_header   : ctx -> string -> string option
-  val req_query    : ctx -> string -> string option
 
-  val add_header    : ctx -> string * string -> unit
+  val recvRequest  : conn -> ctx          (* May raise BadRequest *)
 
   val start        : (conn -> unit) -> unit
 
+  val startConnect : (unit -> 'db) -> (conn * 'db -> unit) -> unit
 end
 
 (**
 
 Description:
-
-[sendRedirect ctx loc] sends redirection HTTP response to client
-(status code 302), with information that the client should request
-location loc. May raise MissingConnection.
-
-[encodeUrl s] returns an encoded version of the argument s as URL
-query data. All characters except the alphanumerics are encoded as
-specified in RFC1738, Uniform Resource Locators.  This function can be
-used to append arguments to a URL as query data following a `?'.
-
-[decodeUrl s] decodes data s that was encoded as URL query data. The
-decoded data is returned.
-
-[sendFileMime ctx mimetype file] returns the entire contents of the
-given file to the client. In addition to setting the HTTP status
-response line to 200 and the Content-Type header from the given
-parameter, the function also uses the stat system call to generate the
-appropriate Last-Modified and Content-Length headers. May raise
-Fail(msg) if file cannot be accessed.
-
-[sendFile ctx file] as sendFileMime, but gets the Content-Type
-(mimetype) argument from calling the function Http.Mime.fromExt with
-the given file's extension as parameter.
-
-[buildUrl u l] adds query arguments (as they appear in l) to the base
-url u by appending the the character '?' and URL-encoded versions of
-the query arguments, deliminated by the character '&'.
 
 [start handler] starts a server that will serve requests using the
 supplied handler. The handler takes a connection socket as argument,
@@ -90,5 +51,13 @@ appropriate response to the client (status code
 Http.StatusCode.BadRequest or Http.StatusCode.InternalServerError).
 
 The connection attached to conn is closed when the handler returns.
+
+[startConnect connectf handler] starts a server that will serve
+requests using the supplied handler. The startConnect function first
+makes a call to the connectf function (e.g., to create a database
+connection) before it starts processing HTTP requests using the
+handler function, which besides from its connection socket argument
+also takes as argument the result of the call to the connectf function
+(e.g., the database connection).
 
 *)

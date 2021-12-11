@@ -20,6 +20,19 @@ servicing requests.
 - `lib/github.com/diku-dk/sml-server/server.mlb`:
 
   - **signature** [`SERVER`](lib/github.com/diku-dk/sml-server/server.sig)
+
+  - **signature** [`SERVER_UTIL`](lib/github.com/diku-dk/sml-server/server-util.sig)
+
+  - **signature** [`SERVER_SERIALIZE`](lib/github.com/diku-dk/sml-server/server-serialize.sig)
+
+  - **signature** [`SERVER_COOKIE`](lib/github.com/diku-dk/sml-server/server-cookie.sig)
+
+  - **signature** [`SERVER_REQ`](lib/github.com/diku-dk/sml-server/server-req.sig)
+
+  - **signature** [`SERVER_RESP`](lib/github.com/diku-dk/sml-server/server-resp.sig)
+
+  - **signature** [`SERVER_CONN`](lib/github.com/diku-dk/sml-server/server-conn.sig)
+
   - **structure** `Server` :> `SERVER`
 
 ## Demonstration
