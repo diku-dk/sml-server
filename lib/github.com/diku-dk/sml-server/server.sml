@@ -151,11 +151,8 @@ fun recvRequest (conn as (sock,sa,opts):conn) : ctx =
 
 structure Resp : SERVER_RESP = struct
   type ctx = ctx
-
   type filepath = string
-
   type sc = Http.StatusCode.t
-
   fun addHeader (ctx:ctx) p =
       #resp_headers ctx := (p :: (!(#resp_headers ctx)))
   fun sendOK (ctx:ctx) (body:string) : unit =
@@ -207,6 +204,85 @@ structure Conn : SERVER_CONN = struct
       ) handle _ => false
 end
 
+structure Info : sig include SERVER_INFO
+                     val setAndLoadConfigFile : string -> bool
+                 end = struct
+  fun hostname () = NetHostDB.getHostName()
+
+  fun pid () =
+      Posix.ProcEnv.getpid() |> Posix.Process.pidToWord
+                             |> SysWord.toIntX
+
+  fun username () = Posix.ProcEnv.getlogin()
+
+  val time0 = Time.now()
+  fun uptimeProcess () : Time.time =
+      Time.-(Time.now(), time0)
+
+  val cfileRef = ref ""
+  val cfileValues : (string * string) list ref = ref nil
+
+  fun qq s = "'" ^ s ^ "'"
+
+  fun readFile f =
+      let val is = TextIO.openIn f
+      in let val s = TextIO.inputAll is
+         in TextIO.closeIn is
+          ; s
+         end handle ? => (TextIO.closeIn is; raise ?)
+      end handle _ => raise Fail ("failed to read configuration file " ^ qq f)
+
+  fun trim s = Substring.full s
+            |> Substring.dropl Char.isSpace
+            |> Substring.dropr Char.isSpace
+            |> Substring.string
+            |> (fn "" => NONE | s => SOME s)
+
+  fun setAndLoadConfigFile cfile =
+      if cfile = "" then true
+      else let val content = readFile cfile
+               val lines = String.tokens (fn c => c = #"\n") content
+               val pairs =
+                   List.foldr
+                       (fn (line,acc) =>
+                           if line = "" orelse String.sub(line,0) = #"%"
+                              orelse CharVector.all Char.isSpace line
+                           then acc
+                           else
+                             let fun err () =
+                                     raise Fail ("wrong line format for line:\n " ^ qq line ^ "\n" ^
+                                                 " - use ':' to separate key and value.\n " ^
+                                                 " - use an initial '%' to specify a line comment.")
+                             in case String.tokens (fn c => c = #":") line of
+                                    [k,v] => (case (trim k, trim v) of
+                                                  (SOME k, SOME v) => (k,v)::acc
+                                                | _ => err())
+                                  | _ => err()
+                             end) nil lines
+               fun check nil = ()
+                 | check ((k,_)::rest) =
+                   if List.exists (fn (k',_) => k=k') rest then
+                     raise Fail ("multiple definitions for key " ^ qq k ^
+                                 " in the configuration file " ^ qq cfile ^ ".")
+                   else check rest
+           in check pairs
+            ; cfileValues := pairs
+            ; cfileRef := cfile
+            ; true
+           end handle Fail msg => ( print ("Error: " ^ msg ^ "\nExiting...\n")
+                                  ; false )
+
+  fun configValues () = !cfileValues
+
+  fun configGetValue k =
+      List.find (fn (k',_) => k=k') (!cfileValues)
+      |> Option.map #2
+
+  fun configFile () = case !cfileRef of
+                          "" => NONE
+                        | s => SOME s
+end
+
 (** The server code **)
 
 type 'db handler = conn * 'db -> unit
@@ -241,7 +317,8 @@ fun serve (opts:opts) (port:int)
 
 val version = "v0.0.1"
 val portDoc = ["Start the web server on port N."]
-val logDoc = ["Log messages to file S. The default is stdout."]
+val logDoc = ["Log messages to file S. The default is 'stdout'."]
+val confDoc = ["Read configuration parameters from the file S."]
 
 fun startConnect (connectdb: unit -> 'db)
                  (handler: 'db handler) : unit =
@@ -252,12 +329,17 @@ fun startConnect (connectdb: unit -> 'db)
       val getLog : unit -> string =
           CmdArgs.addString ("log", "stdout", SOME logDoc)
 
+      val getConf : unit -> string =
+          CmdArgs.addString ("conf", "", SOME confDoc)
+
       val () = CmdArgs.addUsage ("help", "option...")
       val () = CmdArgs.addVersion ("version", "sml-server " ^ version)
 
     in case CmdArgs.processOptions() of
            nil => let val opts : opts = {logfile=getLog()}
-                  in serve opts (getPort()) connectdb handler
+                  in if Info.setAndLoadConfigFile (getConf()) then
+                       serve opts (getPort()) connectdb handler
+                     else OS.Process.exit OS.Process.failure
                   end
         | _ => CmdArgs.printUsageExit OS.Process.failure
     end

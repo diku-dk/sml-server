@@ -33,6 +33,8 @@ servicing requests.
 
   - **signature** [`SERVER_CONN`](lib/github.com/diku-dk/sml-server/server-conn.sig)
 
+  - **signature** [`SERVER_INFO`](lib/github.com/diku-dk/sml-server/server-info.sig)
+
   - **structure** `Server` :> `SERVER`
 
 ## Demonstration

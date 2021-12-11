@@ -5,7 +5,9 @@ Options:
 --port N                                                                (8000)
   Start the web server on port N.
 --log S                                                               (stdout)
-  Log messages to file S. The default is stdout.
+  Log messages to file S. The default is 'stdout'.
+--conf S                                                                    ()
+  Read configuration parameters from the file S.
 --help
   Print usage information and exit.
 --version
