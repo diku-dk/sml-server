@@ -35,9 +35,13 @@ response.
 The function reads configuration arguments from the command line
 according to the following specification:
 
---port N  : Start the web server on port N.
+--port N  : Start the HTTP server on port N.
 
---log S   : Log messages to file S. The default is stdout.
+--log S   : Log access messages to file S. The default is stdout.
+
+--conf S  : Read configuration parameters from file S. Configuration
+            parameters can be accessesd using functionality in the
+            Info structure.
 
 --version : Print version information.
 

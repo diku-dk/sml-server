@@ -24,3 +24,5 @@ val () = test "url-decode-5" id "a bc%ax a" (fn () => decodeUrl "a%20bc%ax%20a")
 fun test_urlencode s = test "url-deencode" id s (fn () => decodeUrl(encodeUrl s))
 
 val () = app test_urlencode ["", "abc", "sdfj3wewe", " efd eed & /(982s"]
+
+val () = print "Ending\n"
