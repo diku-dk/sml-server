@@ -19,6 +19,8 @@ type conn = Socket.active Socket.stream INetSock.sock * INetSock.sock_addr * opt
 type header = string * string
 type ctx = {conn:conn, req:Request.t, resp_headers:header list ref}
 
+fun qq s = "'" ^ s ^ "'"
+
 structure Serialize : SERVER_SERIALIZE = ServerSerialize
 
 structure Info : sig include SERVER_INFO
@@ -38,8 +40,6 @@ structure Info : sig include SERVER_INFO
 
   val cfileRef = ref ""
   val cfileValues : (string * string) list ref = ref nil
-
-  fun qq s = "'" ^ s ^ "'"
 
   fun readFile f =
       let val is = TextIO.openIn f
@@ -338,13 +338,18 @@ structure Resp : SERVER_RESP = struct
       end handle _ => NONE
 
   fun sendFileMimeStr (ctx:ctx) mts fp : unit =
-      if String.isSubstring ".." fp then
-        let val sc = case Http.StatusCode.fromString "403" of
-                         SOME sc => sc
-                       | NONE => raise Fail "Server.Resp.sendFileMimeStr: impossible"
-        in sendLine ctx sc
-        end
-      else case readBinFile fp of
+      if String.isSubstring ".." fp
+         orelse String.isSubstring "//" fp
+         orelse size fp = 0
+         orelse String.sub(fp,0) <> #"/"
+      then let val sc = case Http.StatusCode.fromString "403" of
+                            SOME sc => sc
+                          | NONE => raise Fail "Server.Resp.sendFileMimeStr: impossible"
+           in sendLine ctx sc
+           end
+      else
+        let val fp = String.extract(fp,1,NONE)
+        in case readBinFile fp of
                SOME s => ( setContentTypeStr ctx mts
                          ; sendOK ctx s )
              | NONE =>
@@ -353,6 +358,7 @@ structure Resp : SERVER_RESP = struct
                               | NONE => raise Fail "Server.Resp.sendFileMimeStr: impossible"
                in sendLine ctx sc
                end
+        end
 
   fun sendFileMime ctx mt fp =
       sendFileMimeStr ctx (Http.Mime.toString mt) fp
@@ -362,7 +368,10 @@ structure Resp : SERVER_RESP = struct
               case OS.Path.ext fp of
                   SOME x =>
                   (case Http.Mime.fromExt x of
-                       SOME mt => maybeAddEncoding(Http.Mime.toString mt)
+                       SOME mt =>
+                       let val mt = Http.Mime.toString mt
+                       in maybeAddEncoding mt
+                       end
                      | NONE => "application/octet-stream")
                 | NONE => "application/octet-stream"
       in sendFileMimeStr ctx mts fp
