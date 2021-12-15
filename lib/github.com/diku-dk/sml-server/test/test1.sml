@@ -195,6 +195,102 @@ structure ServerInfo = struct
       "</table>"]
     |> String.concat
     )
+end
+
+structure Cookie = struct
+
+fun sendShow ctx =
+    let val cookies = Server.Cookie.getCookies ctx
+        val cookies_list =
+            if List.null cookies then
+              "<li>No defined cookies</li>"
+            else
+              ( map (fn (n,v) => "<li>" ^ n ^ " : " ^ v ^ "</li>") cookies
+              |> String.concat )
+    in
+      Page.return ctx "Cookie Example"
+      (["<ul>", cookies_list, "</ul>",
+
+        "Cookies may be added to the list above using the \"Set ",
+        "Cookie\" form. The name and value attributes are ",
+        "mandatory and are sequences of characters. The character ",
+        "sequences are automatically URL-encoded, thus it is ",
+        "legal to include semi-colon, comma, and white space in ",
+        "both name and value. <p>",
+
+        "A cookie is removed from the browser when the expiration ",
+        "date is reached.  The life time of a cookie with no ",
+        "expiry attribute is the user's session. Life times are ",
+        "given in seconds; the program computes an expiration ",
+        "date based on the current time and the specified life ",
+        "time. A cookie may be removed by specifying a negative ",
+        "life time or by using the \"Delete Cookie\" form. <p>",
+
+        "A cookie may be specified to be secure, which means that ",
+        "the cookie is transmitted on secure channels only (e.g., ",
+        "HTTPS requests using SSL). A value of \"No\" means that ",
+        "the cookie is sent in clear text on insecure channels ",
+        "(e.g., HTTP requests).<p>",
+
+        "<form method=post action='/cookie_set'>",
+        "<table>",
+        "<tr><td>Name<td>Value<td>Life Time<td>Secure<td>&nbsp",
+        "<tr>",
+        "<td><input type=text value='foo' size=10 name=cookie_name>",
+        "<td><input type=text value='bar' size=10 name=cookie_value>",
+        "<td><input type=text value='60' size=10 name=cookie_lt>",
+        "<td><select name=cookie_secure>",
+        "	     <option value='Yes'>Yes</option>",
+        "	     <option selected value='No'>No</option>",
+        "	  </select>",
+        "<td><input type=submit value='Set Cookie'>",
+        "</tr>",
+        "</table>",
+        "</form>",
+
+        "<form method=post action='/cookie_delete'>",
+        "<table>",
+        "<tr><td>Name<td>&nbsp;</tr>",
+        "<tr>",
+        "<td><input type=text value='foo' name=cookie_name>",
+        "<td><input type=submit value='Delete Cookie'>",
+        "</tr>",
+        "</table>",
+        "</form>"]
+           |> String.concat)
+    end
+
+fun sendSet ctx =
+    let val cv = getPostVar ctx "cookie_value"
+        val cn = getPostVar ctx "cookie_name"
+        val clt = case getPostVarInt ctx "cookie_lt" of
+	              NONE => 60
+	            | SOME clt => clt
+
+        val cs = case getPostVar ctx "cookie_secure" of
+                     SOME "Yes" => true
+	           | _  => false
+
+        val expiry = let open Time Date
+	             in fromTimeUniv(now() + fromSeconds (Int.toLarge clt))
+	             end
+
+    in case (cv, cn) of
+           (SOME cv, SOME cn) =>
+           ( Server.Cookie.setCookie ctx {name=cn, value=cv, expiry=SOME expiry,
+	                                  domain=NONE, path=SOME "/", secure=cs}
+           ; Server.Resp.sendRedirect ctx "/cookie"
+           )
+         | _ => Server.Resp.sendRedirect ctx "/"
+    end
+
+fun sendDelete ctx =
+    case getPostVar ctx "cookie_name" of
+        SOME cn =>
+        ( Server.Cookie.deleteCookie ctx {name=cn,path=SOME "/"}
+        ; Server.Resp.sendRedirect ctx "/cookie"
+        )
+      | NONE => Server.Resp.sendRedirect ctx "/"
 
 end
 
@@ -206,6 +302,7 @@ fun sendIndex ctx =
                                "<li>", "<a href='/recipe.html'>Dynamic Recipe</a></li>",
                                "<li>", "<a href='/guess'>Guess a number</a></li>",
                                "<li>", "<a href='/server'>Server information</a></li>",
+                               "<li>", "<a href='/cookie'>Cookie Management</a></li>",
                                "</ul>"])
 
 fun handler conn =
@@ -222,6 +319,9 @@ fun handler conn =
                      | "/count" => sendCount ctx
                      | "/recipe" => Recipe.send ctx
                      | "/server" => ServerInfo.send ctx
+                     | "/cookie" => Cookie.sendShow ctx
+                     | "/cookie_set" => Cookie.sendSet ctx
+                     | "/cookie_delete" => Cookie.sendDelete ctx
                      | _ => sendIndex ctx
     end
 
