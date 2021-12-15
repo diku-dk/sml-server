@@ -118,7 +118,7 @@ structure Recipe = struct
                     "An error occurred while generating a recipe for \
                     \you; use your browser's back-button to backup \
                     \and enter a number in the form."
-      ; raise Interrupt
+      ; raise Server.MissingConnection
       )
 
   fun pr_num s r =

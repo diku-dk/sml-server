@@ -435,6 +435,7 @@ fun runHandler (conn:conn) (db:'db) (handler:'db handler) =
                         ; sendStatusCodeClose (#1 conn) sc)
     in handler (conn,db)
        handle BadRequest => sendSC StatusCode.BadRequest
+            | MissingConnection => ()
             | _ => sendSC StatusCode.InternalServerError
     end
 
