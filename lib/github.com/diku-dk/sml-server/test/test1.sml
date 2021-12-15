@@ -1,6 +1,9 @@
 
 local
 
+infix |>
+fun x |> f = f x
+
 structure Page = struct
 
   fun return ctx t s =
@@ -48,9 +51,11 @@ structure Guess = struct
       case getInt ctx "n" of
           NONE => page ctx "Guess a number between 0 and 100"
                        "bill_guess.jpg"
-                       (mkForm (Random.range (0,100)
-                                             (Random.newgen()))
-                       )
+                       (mkForm (Server.Info.uptimeProcess ()
+                                |> Time.toSeconds
+                                |> IntInf.toInt
+                                |> (fn i => (31 * i) mod 100)
+                               ))
         | SOME n =>
           case getInt ctx "guess" of
               NONE => page ctx "You must type a number - try again"
