@@ -124,7 +124,7 @@ structure Recipe = struct
   fun pr_num s r =
       if Real.== (r,1.0) then "one " ^ s
       else if Real.==(real(round r),r) then
-	Int.toString (round r) ^ " " ^ s ^ "s"
+        Int.toString (round r) ^ " " ^ s ^ "s"
       else Real.toString r ^ " " ^ s ^ "s"
 
   fun send ctx =
@@ -182,16 +182,16 @@ structure ServerInfo = struct
       "<table border=1>",
       "<tr><th>Key</th><th>Value</th></tr>",
       String.concat(foldr (fn ((k,v),acc) =>
-		              "<tr><td>" :: k :: "</td><td>" :: v :: "</td></tr>" :: acc)
-	                  nil (Server.Req.headers ctx)),
+                              "<tr><td>" :: k :: "</td><td>" :: v :: "</td></tr>" :: acc)
+                          nil (Server.Req.headers ctx)),
       "</table>",
 
       "<h2>Form Data</h2>",
       "<table border=1>",
       "<tr><th>Key</th><th>Value</th></tr>",
       String.concat(foldr(fn ((k,v),acc) =>
-			     "<tr><td>" :: k :: "</td><td>" :: v :: "</td></tr>" :: acc)
-	                 nil (Server.Req.queryAll ctx)),
+                             "<tr><td>" :: k :: "</td><td>" :: v :: "</td></tr>" :: acc)
+                         nil (Server.Req.queryAll ctx)),
       "</table>"]
     |> String.concat
     )
@@ -240,9 +240,9 @@ fun sendShow ctx =
         "<td><input type=text value='bar' size=10 name=cookie_value>",
         "<td><input type=text value='60' size=10 name=cookie_lt>",
         "<td><select name=cookie_secure>",
-        "	     <option value='Yes'>Yes</option>",
-        "	     <option selected value='No'>No</option>",
-        "	  </select>",
+        "            <option value='Yes'>Yes</option>",
+        "            <option selected value='No'>No</option>",
+        "         </select>",
         "<td><input type=submit value='Set Cookie'>",
         "</tr>",
         "</table>",
@@ -264,21 +264,21 @@ fun sendSet ctx =
     let val cv = getPostVar ctx "cookie_value"
         val cn = getPostVar ctx "cookie_name"
         val clt = case getPostVarInt ctx "cookie_lt" of
-	              NONE => 60
-	            | SOME clt => clt
+                      NONE => 60
+                    | SOME clt => clt
 
         val cs = case getPostVar ctx "cookie_secure" of
                      SOME "Yes" => true
-	           | _  => false
+                   | _  => false
 
         val expiry = let open Time Date
-	             in fromTimeUniv(now() + fromSeconds (Int.toLarge clt))
-	             end
+                     in fromTimeUniv(now() + fromSeconds (Int.toLarge clt))
+                     end
 
     in case (cv, cn) of
            (SOME cv, SOME cn) =>
            ( Server.Cookie.setCookie ctx {name=cn, value=cv, expiry=SOME expiry,
-	                                  domain=NONE, path=SOME "/", secure=cs}
+                                          domain=NONE, path=SOME "/", secure=cs}
            ; Server.Resp.sendRedirect ctx "/cookie"
            )
          | _ => Server.Resp.sendRedirect ctx "/"
