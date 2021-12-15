@@ -18,9 +18,9 @@ signature SERVER_REQ = sig
   val header   : ctx -> string -> string option
   val headers  : ctx -> (string * string) list
 
+  val postData : ctx -> string
 (*
   val getQuery           : ctx -> (string * string) list
-  val getRequestData     : ctx -> string
   val formvar            : ctx -> string -> string option
   val formvarAll         : ctx -> string -> string list
   val storeMultiformData : ctx -> string * string -> unit

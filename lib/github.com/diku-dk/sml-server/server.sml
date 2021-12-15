@@ -151,6 +151,11 @@ structure Req : SERVER_REQ = struct
           SOME v => v
         | NONE => ""
 
+  fun postData (ctx:ctx) : string =
+      case #body(#req ctx) of
+          SOME s => s
+        | NONE => ""
+
 end
 
 fun sendVecAll (sock, slc) =
