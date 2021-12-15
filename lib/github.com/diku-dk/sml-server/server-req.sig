@@ -13,6 +13,7 @@ signature SERVER_REQ = sig
   val method   : ctx -> Http.Request.method
   val path     : ctx -> string
   val query    : ctx -> string -> string option
+  val queryAll : ctx -> (string * string) list
 
   val host     : ctx -> string
   val header   : ctx -> string -> string option

@@ -122,17 +122,21 @@ structure Req : SERVER_REQ = struct
     | query_of_uri (Uri.PATH {query,...}) = query
     | query_of_uri Uri.AST = ""
 
-  fun query (ctx:ctx) (k:string) : string option =
+  fun queryAll (ctx:ctx) : (string * string) list =
       let val query = query_of_uri (#uri(#line(full ctx)))
           val tokens = String.tokens (fn c => c = #"&") query
-          val pairs = List.foldr (fn (t,acc)=>
-                                     case String.tokens (fn c => c = #"=") t of
-                                         [k,v] => (k,v)::acc
-                                       | nil => acc
-                                       | [k] => (k,"")::acc
-                                       | k :: _ => (k,String.extract(t,size k,NONE)
-                                                      handle _ => "")::acc)
-                                 nil tokens
+      in List.foldr (fn (t,acc)=>
+                        case String.tokens (fn c => c = #"=") t of
+                            [k,v] => (k,v)::acc
+                          | nil => acc
+                          | [k] => (k,"")::acc
+                          | k :: _ => (k,String.extract(t,size k,NONE)
+                                         handle _ => "")::acc)
+                    nil tokens
+      end
+
+  fun query (ctx:ctx) (k:string) : string option =
+      let val pairs = queryAll ctx
       in case List.find (fn (x,_) => x=k) pairs of
              SOME (_,y) => SOME y
            | NONE => NONE
