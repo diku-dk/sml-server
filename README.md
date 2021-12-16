@@ -35,6 +35,8 @@ servicing requests.
 
   - **signature** [`SERVER_INFO`](lib/github.com/diku-dk/sml-server/server-info.sig)
 
+  - **signature** [`SERVER_FETCH`](lib/github.com/diku-dk/sml-server/server-fetch.sig)
+
   - **structure** `Server` :> `SERVER`
 
 ## Demonstration

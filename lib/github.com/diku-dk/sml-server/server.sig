@@ -15,6 +15,7 @@ signature SERVER = sig
   structure Resp      : SERVER_RESP       where type ctx = ctx
   structure Conn      : SERVER_CONN       where type ctx = ctx
   structure Info      : SERVER_INFO
+  structure Fetch     : SERVER_FETCH
 
   val recvRequest  : conn -> ctx          (* May raise BadRequest *)
 

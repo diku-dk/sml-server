@@ -13,6 +13,7 @@ in
   server-resp.sig
   server-conn.sig
   server-info.sig
+  server-fetch.sig
   server.sig
   server.sml
 end

@@ -7,6 +7,8 @@ fun debug f = ()
 infix |>
 fun x |> f = f x
 
+fun qq s = "'" ^ s ^ "'"
+
 exception InternalServerError
 exception BadRequest
 exception MissingConnection
@@ -18,8 +20,7 @@ type opts = {logfile:string}
 type conn = Socket.active Socket.stream INetSock.sock * INetSock.sock_addr * opts
 type header = string * string
 type ctx = {conn:conn, req:Request.t, resp_headers:header list ref}
-
-fun qq s = "'" ^ s ^ "'"
+type filepath = string
 
 structure Serialize : SERVER_SERIALIZE = ServerSerialize
 
@@ -102,8 +103,6 @@ end
 
 structure Util : SERVER_UTIL = ServerUtil
 
-type filepath = string
-
 structure Req : SERVER_REQ = struct
 
   type ctx = ctx
@@ -114,9 +113,9 @@ structure Req : SERVER_REQ = struct
 
   fun path (ctx:ctx) : string =
       case #uri (#line (full ctx)) of
-          Http.Uri.PATH {path,...} => path
-        | Http.Uri.URL {path,...} => path
-        | Http.Uri.AST => "*"
+          Uri.PATH {path,...} => path
+        | Uri.URL {path,...} => path
+        | Uri.AST => "*"
 
   fun query_of_uri (Uri.URL {query,...}) = query
     | query_of_uri (Uri.PATH {query,...}) = query
@@ -235,6 +234,59 @@ fun recvRequest (conn as (sock,sa,opts):conn) : ctx =
                             else raise BadRequest
          | NONE => raise BadRequest
     end
+
+structure Fetch : SERVER_FETCH = struct
+
+  fun fetchRaw {host:string, port:int, msg:string} : string option =
+      case NetHostDB.getByName host of
+          NONE => NONE
+        | SOME e =>
+          let val addr = INetSock.toAddr (NetHostDB.addr e, port)
+              val bufsz = 2048
+              val sock = INetSock.TCP.socket()
+              fun loop acc =
+                  let val v = Socket.recvVec(sock, bufsz)
+                      val l = Word8Vector.length v
+                  in if l < bufsz
+                     then rev (v::acc)
+                              |> Word8Vector.concat
+                              |> Byte.bytesToString
+                     else loop (v::acc)
+                  end
+          in ( Socket.connect (sock, addr)
+             ; sendVecAll (sock, Byte.stringToBytes msg
+                                 |> Word8VectorSlice.full )
+             ; SOME (loop nil) before Socket.close sock
+             ) handle _ => ( Socket.close sock; NONE )
+          end
+
+  fun fetch {scheme,host,port,req} =
+      if scheme <> "http" then NONE
+      else let val msg = Request.toString req
+           in case fetchRaw {host=host,port=port,msg=msg} of
+                  NONE => NONE
+                | SOME s =>
+                  case Response.parse CharVectorSlice.getItem
+                                      (CharVectorSlice.full s) of
+                      SOME(r,sl) => SOME r
+                    | NONE => NONE
+           end
+
+  fun fetchUrl url =
+      case Uri.parse CharVectorSlice.getItem
+                     (CharVectorSlice.full url) of
+          SOME (Uri.URL{scheme,host,port,path,query}, sl) =>
+          let val line = {method=Request.GET,
+                          uri=Uri.PATH {path=path,query=query},
+                          version=Version.HTTP_1_1}
+              val req = {line=line, headers=[("Host",host)],
+                         body=NONE}
+              val port = case port of SOME p => p
+                                    | NONE => 80
+          in fetch {scheme=scheme,host=host,port=port,req=req}
+          end
+        | _ => NONE
+end
 
 structure Resp : SERVER_RESP = struct
 
