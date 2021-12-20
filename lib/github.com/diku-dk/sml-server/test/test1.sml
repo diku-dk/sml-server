@@ -18,17 +18,10 @@ structure Page = struct
       end
 end
 
-(* we'll simplify this thing later *)
+(* we'll cache these queries later (in ctx) *)
 fun getPostVar ctx n =
-    let val lines =
-            String.tokens (fn c => c = #"&") (Server.Req.postData ctx)
-    in List.foldr (fn (l,SOME v) => SOME v
-                  | (l,NONE) =>
-                    case String.tokens (fn c => c = #"=") l of
-                        [k,v] => if n=k then SOME v
-                                 else NONE
-                      | _ => NONE)
-                  NONE lines
+    let val data = Http.Request.dataFromString (Server.Req.postData ctx)
+    in Http.Header.look data n
     end
 
 fun getPostVarInt ctx name =
@@ -294,6 +287,41 @@ fun sendDelete ctx =
 
 end
 
+structure FileUpload = struct
+
+fun send ctx =
+    Page.return ctx "File upload"
+      ("Upload a file:<br />\n\
+       \<form method=POST action=/file_upload_upload enctype=multipart/form-data>\n\
+       \<input type=file name=file multiple />\
+       \<input type=submit value='Upload' />\
+       \</form>")
+
+fun upload ctx =
+    let val body = Server.Req.postData ctx
+        val headers = Server.Req.headers ctx
+        val contentType = case Http.Header.look headers "Content-Type" of
+                              SOME x => x
+                            | _ => raise Server.BadRequest
+    in case Http.Request.parseMPFD {contentType=contentType} (Substring.full body) of
+           NONE => Page.return ctx "Upload result" "No files..."
+         | SOME parts =>
+           let open Http.Request
+               fun prPart (File_mpfd {name, filename, content, ...}) =
+                   String.concatWith "<br/>" ["<b>Name : " ^ name ^ "</b>",
+                                              "Filename : " ^ filename,
+                                              "Size : " ^ Int.toString (Substring.size content)]
+                 | prPart (Norm_mpfd {name, content, ...}) =
+                   String.concatWith "<br/>" ["<b>Name : " ^ name ^ "</b>",
+                                              "Size : " ^ Int.toString (Substring.size content)]
+           in Page.return ctx "Upload result"
+                          (String.concatWith "<br/>"
+                                             (map prPart parts))
+           end
+    end
+
+end
+
 fun sendIndex ctx =
     Page.return ctx "SMLserver demos"
                 (String.concat["<ul>",
@@ -303,6 +331,7 @@ fun sendIndex ctx =
                                "<li>", "<a href='/guess'>Guess a number</a></li>",
                                "<li>", "<a href='/server'>Server information</a></li>",
                                "<li>", "<a href='/cookie'>Cookie Management</a></li>",
+                               "<li>", "<a href='/file_upload'>File Upload</a></li>",
                                "</ul>"])
 
 fun handler conn =
@@ -322,6 +351,8 @@ fun handler conn =
                      | "/cookie" => Cookie.sendShow ctx
                      | "/cookie_set" => Cookie.sendSet ctx
                      | "/cookie_delete" => Cookie.sendDelete ctx
+                     | "/file_upload" => FileUpload.send ctx
+                     | "/file_upload_upload" => FileUpload.upload ctx
                      | _ => sendIndex ctx
     end
 

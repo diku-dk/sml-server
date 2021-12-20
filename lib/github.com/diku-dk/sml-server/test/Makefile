@@ -28,4 +28,4 @@ test: test1.res test2.res
 
 .PHONY: clean
 clean:
-	rm -rf MLB *.out *~ *.exe *.res run
+	rm -rf MLB *.out *~ *.exe *.res run test1 test2

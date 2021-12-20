@@ -15,6 +15,8 @@ exception MissingConnection
 
 open Http
 
+structure SS = Substring
+
 type opts = {logfile:string}
 
 type conn = Socket.active Socket.stream INetSock.sock * INetSock.sock_addr * opts
@@ -50,10 +52,10 @@ structure Info : sig include SERVER_INFO
          end handle ? => (TextIO.closeIn is; raise ?)
       end handle _ => raise Fail ("failed to read configuration file " ^ qq f)
 
-  fun trim s = Substring.full s
-            |> Substring.dropl Char.isSpace
-            |> Substring.dropr Char.isSpace
-            |> Substring.string
+  fun trim s = SS.full s
+            |> SS.dropl Char.isSpace
+            |> SS.dropr Char.isSpace
+            |> SS.string
             |> (fn "" => NONE | s => SOME s)
 
   fun setAndLoadConfigFile cfile =
@@ -145,9 +147,7 @@ structure Req : SERVER_REQ = struct
       #headers(full ctx)
 
   fun header (ctx:ctx) (k:string) : string option =
-      case List.find (fn (x,_) => x=k) (headers ctx) of
-          SOME (_,y) => SOME y
-        | NONE => NONE
+      Header.look (headers ctx) k
 
   fun host (ctx:ctx) : string =
       case header ctx "Host" of
@@ -155,10 +155,11 @@ structure Req : SERVER_REQ = struct
         | NONE => ""
 
   fun postData (ctx:ctx) : string =
-      case #body(#req ctx) of
-          SOME s => s
-        | NONE => ""
-
+      let val s = case #body(#req ctx) of
+                      SOME s => s
+                    | NONE => ""
+      in s
+      end
 end
 
 fun sendVecAll (sock, slc) =
@@ -186,13 +187,6 @@ fun sendResponseClose sock resp =
     let val res = Response.toString resp
         val () = debug (fn () => "Sending response:\n" ^ res ^ "\n")
     in sendStrClose (sock, res)
-    end
-
-fun recvVecAll sock =
-    let val vec = Socket.recvVec (sock, CharVector.maxLen)
-        val () = debug (fn () => "received vector of size " ^
-                                 Int.toString (Word8Vector.length vec) ^ "\n")
-    in vec
     end
 
 fun accesslog ((sock,sa,opts):conn) (req:Request.t option) (status,bytes) =
@@ -226,13 +220,69 @@ fun accesslog ((sock,sa,opts):conn) (req:Request.t option) (status,bytes) =
                 st ^ " " ^ Int.toString bytes ^ "\n")
     end
 
-fun recvRequest (conn as (sock,sa,opts):conn) : ctx =
-    let val s = Byte.bytesToString (recvVecAll sock)
-    in case Request.parse CharVectorSlice.getItem (CharVectorSlice.full s) of
-           SOME (req, s) => if CharVectorSlice.isEmpty s
-                            then {conn=conn, req=req, resp_headers=ref nil}
-                            else raise BadRequest
-         | NONE => raise BadRequest
+(* Receive request line and headers first - that is, read until we
+   have received the characters "\r\n\r\n"; at this point, we have
+   received all headers and we can now assume that there is a
+   Content-Length header, if more data should be read... *)
+
+fun recvRequestLineAndHeaders (conn:conn) :
+    {line: Request.line,
+     headers: (string*string) list,
+     rest: CharVectorSlice.slice} =
+    let val sock = #1 conn
+        fun recv acc =
+            let val ss = Socket.recvVec (sock, Word8Vector.maxLen)
+                         |> Byte.bytesToString
+                         |> SS.full
+            in if SS.size ss = 0 then raise MissingConnection
+               else let val (prefix,suffix) = SS.position "\r\n\r\n" ss
+                    in if SS.size suffix = 0   (* we have not read the double-nl yet *)
+                       then recv (ss::acc)
+                       else let val prefix =
+                                    let val (s,i,j) = SS.base prefix
+                                    in SS.substring (s,i,j+2) (* include \r\n *)
+                                    end
+                                val suffix = SS.triml 4 suffix (* drop \r\n\r\n *)
+                                val line_and_headers =
+                                    List.rev (prefix::acc) |> SS.concat
+                            in (line_and_headers,
+                                suffix)
+                            end
+                    end
+            end
+        val (line_and_headers,rest) = recv nil
+    in case Request.parse_line_and_headers SS.getc (SS.full line_and_headers) of
+           NONE => raise BadRequest
+         | SOME ((line,headers),_) => {headers=headers,
+                                       line=line,
+                                       rest=rest}
+    end
+
+fun headers_look_int headers k =
+    Header.look headers k |> Option.mapPartial Int.fromString
+
+fun recvN sock n acc =
+    if n <= 0 then String.concat (List.rev acc)
+    else let val s = Socket.recvVec (sock, n) |> Byte.bytesToString
+         in recvN sock (n - size s) (s::acc)
+         end
+
+fun recvRequest (conn:conn) : ctx =
+    let val {line,headers,rest} = recvRequestLineAndHeaders conn
+        val body =
+            case #method line of
+                Request.HEAD => NONE
+              | Request.GET => NONE
+              | _ =>
+                case headers_look_int headers "Content-Length" of
+                    NONE => NONE
+                  | SOME n =>
+                    let val n' = n - SS.size rest
+                        val s = recvN (#1 conn) n' [SS.string rest]
+                    in SOME s
+                    end
+        val req = {line=line,headers=headers,body=body}
+    in {conn=conn,req=req,resp_headers=ref nil}
     end
 
 structure Fetch : SERVER_FETCH = struct
@@ -266,15 +316,13 @@ structure Fetch : SERVER_FETCH = struct
            in case fetchRaw {host=host,port=port,msg=msg} of
                   NONE => NONE
                 | SOME s =>
-                  case Response.parse CharVectorSlice.getItem
-                                      (CharVectorSlice.full s) of
+                  case Response.parse SS.getc (SS.full s) of
                       SOME(r,sl) => SOME r
                     | NONE => NONE
            end
 
   fun fetchUrl url =
-      case Uri.parse CharVectorSlice.getItem
-                     (CharVectorSlice.full url) of
+      case Uri.parse SS.getc (SS.full url) of
           SOME (Uri.URL{scheme,host,port,path,query}, sl) =>
           let val line = {method=Request.GET,
                           uri=Uri.PATH {path=path,query=query},
@@ -307,7 +355,7 @@ structure Resp : SERVER_RESP = struct
   fun send (ctx:ctx) (sc:Http.StatusCode.t, body:string) : unit =
       let val bytes = size body
           val line = {version=Version.HTTP_1_1, status=sc}
-          val () = addHeader ctx ("Context-Length",Int.toString bytes)
+          val () = addHeader ctx ("Content-Length",Int.toString bytes)
           val resp = {line=line, headers=rev(!(#resp_headers ctx)), body=SOME body}
       in accesslog (#conn ctx) (SOME(#req ctx)) (sc, bytes)
        ; sendResponseClose (#1(#conn ctx)) resp
@@ -325,11 +373,7 @@ structure Resp : SERVER_RESP = struct
       end
 
   fun sendRedirect ctx loc =
-      let val sc = case Http.StatusCode.fromString "302" of
-                       SOME sc => sc
-                     | NONE => raise Fail "Server.Resp.sendRedirect: impossible"
-      in sendRedirectSC ctx (sc,loc)
-      end
+      sendRedirectSC ctx (Http.StatusCode.Redirect,loc)
 
   fun write (ctx:ctx) (s:string) : unit =
       let val slc = Word8VectorSlice.full (Byte.stringToBytes s)
@@ -403,22 +447,13 @@ structure Resp : SERVER_RESP = struct
          orelse String.isSubstring "//" fp
          orelse size fp = 0
          orelse String.sub(fp,0) <> #"/"
-      then let val sc = case Http.StatusCode.fromString "403" of
-                            SOME sc => sc
-                          | NONE => raise Fail "Server.Resp.sendFileMimeStr: impossible"
-           in sendLine ctx sc
-           end
+      then sendLine ctx Http.StatusCode.Forbidden
       else
         let val fp = String.extract(fp,1,NONE)
         in case readBinFile fp of
                SOME s => ( setContentTypeStr ctx mts
                          ; sendOK ctx s )
-             | NONE =>
-               let val sc = case Http.StatusCode.fromString "404" of
-                                SOME sc => sc
-                              | NONE => raise Fail "Server.Resp.sendFileMimeStr: impossible"
-               in sendLine ctx sc
-               end
+             | NONE => sendLine ctx Http.StatusCode.NotFound
         end
 
   fun sendFileMime ctx mt fp =
