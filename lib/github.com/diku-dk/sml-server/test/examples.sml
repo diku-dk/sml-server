@@ -27,7 +27,7 @@ structure GuessService : SERVICE = struct
       \</form>"
 
   fun page ctx title pic body =
-      Page.return ctx title ("<center><img src='" ^ pic ^ "'><p>" ^
+      Page.return ctx title ("<center><img src='/images/" ^ pic ^ "'><p>" ^
                              body ^ "</p></center>")
 
   fun send path (ctx:Server.ctx) =
@@ -73,13 +73,13 @@ structure TimeService : SERVICE = struct
       in Page.return ctx "Time of Day"
                      (String.concat ["<p>The time-of-day is ", time_of_day, ".</p>",
                                      "<h3>Some SMLserver Logos</h3>",
-                                     "<p><img src='smlserver_logo_color.svg' /></p>",
+                                     "<p><img src='/images/smlserver_logo_color.svg' /></p>",
                                      "<p>",
-                                     "<img src='poweredby_smlserver1_24.png' />&nbsp;",
-                                     "<img src='poweredby_smlserver2_24.png' />&nbsp;",
-                                     "<img src='poweredby_smlserver3_24.png' />&nbsp;",
-                                     "<img src='poweredby_smlserver2_grey_24.png' />&nbsp;",
-                                     "<img src='poweredby_smlserver3_grey_24.png' />",
+                                     "<img src='/images/poweredby_smlserver1_24.png' />&nbsp;",
+                                     "<img src='/images/poweredby_smlserver2_24.png' />&nbsp;",
+                                     "<img src='/images/poweredby_smlserver3_24.png' />&nbsp;",
+                                     "<img src='/images/poweredby_smlserver2_grey_24.png' />&nbsp;",
+                                     "<img src='/images/poweredby_smlserver3_grey_24.png' />",
                                      "</p>"])
     end
 
@@ -137,7 +137,7 @@ structure RecipeService : SERVICE = struct
             ( ["To make an Apple pie for ", pr_num "person" ps, ", you ",
                "need the following ingredients:",
                "<ul>",
-               "<img align=right src=applepie.jpg>",
+               "<img align=right src=/images/applepie.jpg>",
                "<li> ", pr_num "cup" (ps / 16.0), " butter",
                "<li> ", pr_num "cup" (ps / 4.0), " sugar",
                "<li> ", pr_num "egg" (ps / 4.0),

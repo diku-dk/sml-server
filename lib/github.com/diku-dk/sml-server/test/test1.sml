@@ -16,7 +16,6 @@ structure Page = struct
 end
 
 
-
 structure Examples = ExamplesFn (Page)
 open Examples
 
