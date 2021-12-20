@@ -1,6 +1,7 @@
 local
   $(SML_LIB)/basis/basis.mlb
   ../server.mlb
+  examples.sml
 in
   test1.sml
 end

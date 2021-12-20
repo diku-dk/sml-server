@@ -160,6 +160,19 @@ structure Req : SERVER_REQ = struct
                     | NONE => ""
       in s
       end
+
+  fun postQueryAll (ctx:ctx) =
+      Http.Request.dataFromString (postData ctx)
+
+  (* we'll cache these queries later (in ctx) *)
+  fun getPostVar ctx n =
+      let val data = postQueryAll ctx
+      in Http.Header.look data n
+      end
+
+  fun getPostVarInt ctx name =
+      Option.mapPartial Int.fromString (getPostVar ctx name)
+
 end
 
 fun sendVecAll (sock, slc) =
