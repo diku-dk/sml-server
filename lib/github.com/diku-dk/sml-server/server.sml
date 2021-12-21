@@ -123,7 +123,7 @@ structure Req : SERVER_REQ = struct
     | query_of_uri (Uri.PATH {query,...}) = query
     | query_of_uri Uri.AST = ""
 
-  fun queryAll (ctx:ctx) : (string * string) list =
+  fun queryVars (ctx:ctx) : (string * string) list =
       let val query = query_of_uri (#uri(#line(full ctx)))
           val tokens = String.tokens (fn c => c = #"&") query
       in List.foldr (fn (t,acc)=>
@@ -136,11 +136,14 @@ structure Req : SERVER_REQ = struct
                     nil tokens
       end
 
-  fun query (ctx:ctx) (k:string) : string option =
-      let val pairs = queryAll ctx
-      in case List.find (fn (x,_) => x=k) pairs of
-             SOME (_,y) => SOME y
-           | NONE => NONE
+  fun queryVar (ctx:ctx) (k:string) : string option =
+      let val pairs = queryVars ctx  (* cache in ctx *)
+      in Http.Header.look pairs k
+      end
+
+  fun queryVarAll (ctx:ctx) (k:string) : string list =
+      let val pairs = queryVars ctx
+      in Http.Header.lookAll pairs k
       end
 
   fun headers (ctx:ctx) : (string * string) list =
@@ -161,18 +164,78 @@ structure Req : SERVER_REQ = struct
       in s
       end
 
-  fun postQueryAll (ctx:ctx) =
+  (* url-encoded form data *)
+
+  fun postVars (ctx:ctx) =
       Http.Request.dataFromString (postData ctx)
 
-  (* we'll cache these queries later (in ctx) *)
-  fun getPostVar ctx n =
-      let val data = postQueryAll ctx
-      in Http.Header.look data n
+  fun postVar ctx n =
+      let val pairs = postVars ctx  (* cache in ctx *)
+      in Http.Header.look pairs n
       end
 
-  fun getPostVarInt ctx name =
-      Option.mapPartial Int.fromString (getPostVar ctx name)
+  fun postVarAll ctx n =
+      let val pairs = postVars ctx  (* cache in ctx *)
+      in Http.Header.lookAll pairs n
+      end
 
+  (* Multi-part form-data *)
+
+  fun mpfdRequest (ctx:ctx) : string option =
+      case Http.Header.look (headers ctx) "Content-Type" of
+          NONE => NONE
+        | SOME ct =>
+          if SS.isPrefix "multipart/form-data;"
+                         (SS.dropl Char.isSpace (SS.full ct))
+          then SOME ct
+          else NONE
+
+  fun mpfdVars (ctx:ctx) : Http.Request.mpfd list =   (* cache in ctx *)
+      case mpfdRequest ctx of
+          NONE => nil
+        | SOME ct =>
+          case Http.Request.parseMPFD {contentType=ct}
+                                      (SS.full(postData ctx))
+           of NONE => nil
+            | SOME mpfds => mpfds
+
+  val mpfdName : Http.Request.mpfd -> string =
+   fn Http.Request.File_mpfd {name,...} => name
+    | Http.Request.Norm_mpfd {name,...} => name
+
+  val mpfdContent : Http.Request.mpfd -> string =
+   fn Http.Request.File_mpfd {filename,...} => filename
+    | Http.Request.Norm_mpfd {content,...} => SS.string content
+
+  fun mpfdVar ctx n =
+      mpfdVars ctx |> List.find (Header.keyEq n o mpfdName)
+
+
+  fun mpfdVarAll ctx n =
+      mpfdVars ctx |> List.filter (Header.keyEq n o mpfdName)
+
+  fun getVar ctx n =
+      case mpfdRequest ctx of
+          SOME _ => Option.map mpfdContent (mpfdVar ctx n)
+        | NONE => case postVar ctx n of
+                      NONE => queryVar ctx n
+                    | res => res
+
+  fun getVars ctx =
+      case mpfdRequest ctx of
+          SOME _ => List.map (fn mpfd => (mpfdName mpfd,
+                                          mpfdContent mpfd))
+                             (mpfdVars ctx)
+        | NONE => case postVars ctx of
+                      nil => queryVars ctx
+                    | res => res
+
+  fun getVarAll ctx n =
+      case mpfdRequest ctx of
+          SOME _ => List.map mpfdContent (mpfdVarAll ctx n)
+       | NONE => case postVarAll ctx n of
+                     nil => queryVarAll ctx n
+                   | res => res
 end
 
 fun sendVecAll (sock, slc) =

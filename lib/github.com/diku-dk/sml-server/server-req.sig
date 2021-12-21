@@ -8,30 +8,37 @@ signature SERVER_REQ = sig
 
   type ctx
 
-  val full          : ctx -> Http.Request.t
+  val full        : ctx -> Http.Request.t
 
-  val method        : ctx -> Http.Request.method
-  val path          : ctx -> string
-  val query         : ctx -> string -> string option
-  val queryAll      : ctx -> Http.Header.t list
+  val method      : ctx -> Http.Request.method
+  val path        : ctx -> string
 
-  val host          : ctx -> string
-  val header        : ctx -> string -> string option
-  val headers       : ctx -> Http.Header.t list
+  val queryVar    : ctx -> string -> string option
+  val queryVarAll : ctx -> string -> string list
+  val queryVars   : ctx -> Http.Header.t list
 
-  val postData      : ctx -> string
+  val postVar     : ctx -> string -> string option
+  val postVarAll  : ctx -> string -> string list
+  val postVars    : ctx -> Http.Header.t list
 
-  val postQueryAll  : ctx -> Http.Header.t list
+  val mpfdVar     : ctx -> string -> Http.Request.mpfd option
+  val mpfdVarAll  : ctx -> string -> Http.Request.mpfd list
+  val mpfdVars    : ctx -> Http.Request.mpfd list
 
-  val getPostVar    : ctx -> string -> string option
-  val getPostVarInt : ctx -> string -> int option
+  val getVar      : ctx -> string -> string option
+  val getVarAll   : ctx -> string -> string list
+  val getVars     : ctx -> Http.Header.t list
+
+  val host        : ctx -> string
+  val header      : ctx -> string -> string option
+  val headers     : ctx -> Http.Header.t list
+
+  val postData    : ctx -> string
 
 (*
-  val getQuery           : ctx -> (string * string) list
-  val formvar            : ctx -> string -> string option
-  val formvarAll         : ctx -> string -> string list
   val storeMultiformData : ctx -> string * string -> unit
 *)
+
 end
 
 (**
@@ -45,12 +52,6 @@ or HEAD).
 
 [path ctx] returns the path value associated with the request.
 
-[query ctx k] returns SOME v if k is associated with v in the query
-data. Returns NONE otherwise.
-
-[queryAll ctx] returns the key-value bindings provided as the query
-element of a request.
-
 [host ctx] returns the value associated with the Host header of the
 request or the empty string if no Host header is available.
 
@@ -60,26 +61,57 @@ the header name `n` in the request.
 [headers ctx] returns the list of all headers associated with the
 request.
 
+[queryVar ctx n] returns SOME v if v is the first value binding
+present in url-encoded query data (associated with the requested path)
+for which the key equal n (upto case sensitivity). Returns NONE if no
+such binding exists.
+
+[queryVarAll ctx n] returns the list of value bindings present in
+url-encoded query data (associated with the requested path) for which
+the key equal n (upto case sensitivity). Returns nil if no such
+binding exists.
+
+[queryVars ctx] returns the key-value bindings present in url-encoded
+query data (associated with the requested path).
+
 [postData ctx] returns the data string that follows the headers.
 
-[postQueryAll ctx] returns the key-value bindings present in the post
-data string.
+[postVar ctx n] returns SOME v if v is the first value binding present
+in url-encoded post data for which the key equal n (upto case
+sensitivity). Returns NONE if no such binding exists.
 
-[getQuery()] returns the key-value bindings present in the post data
-string if available. Otherwise, the function returns the key-value
-bindings in the path-query string, if available.
+[postVarAll ctx n] returns the list of value bindings present in
+url-encoded post data for which the key equal n (upto case
+sensitivity). Returns nil if no such binding exists.
 
-[formvar k] returns the first query data associated with the key k;
-the function returns NONE if no query data is present for the argument
-key k.
+[postVars ctx] returns the key-value bindings present in url-encoded
+post data.
 
-[formvarAll k] returns all values associated with key k in the query
-data; the function returns the empty list if no query data is present
-for the argument key k.
+[mpfdVar ctx n] returns SOME p if p is the first part in potential
+multi-part form-data for which the name equal n (upto case
+sensitivity). Returns NONE if no such part exists.
+
+[mpfdVarAll ctx n] returns the list of potential multi-part form-data
+for which the key equal n (upto case sensitivity). Returns nil if no
+such part exists.
+
+[mpfdVars ctx] returns the list of potential multi-part form-data.
+
+[getVar ctx n] returns 'SOME v' if 'mfpdVar ctx n = SOME v' orelse
+'postVar ctx n = SOME v' orelse 'queryVar ctx n = SOME v'. Returns
+NONE, otherwise.
+
+[getVarAll ctx n] returns 'vs' if vs<>nil andalso ('mfpdVarAll ctx n =
+vs' orelse 'postVarAll ctx n = vs' orelse 'queryVarAll ctx n =
+vs'). Returns 'nil', otherwise.
+
+[getVars ctx] returns 'kvs' if kvs<>nil andalso ('mfpdVars ctx = kvs'
+orelse 'postVars ctx = kvs' orelse 'queryVars ctx = kvs'). Returns
+'nil', otherwise.
 
 [storeMultiformData (fv,filename)] stores the uploaded file
 represented by formvariable fv in file filename. Raises Fail if some
-error happens (e.g., filename can't be opened, fv does not exists or
-fv is not an uploaded file.
+error occurs (e.g., filename can't be opened, fv does not exists or fv
+is not an uploaded file.
 
 *)

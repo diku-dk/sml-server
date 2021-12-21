@@ -13,6 +13,7 @@ clean:
 	($(MAKE) -C lib/github.com/diku-dk/sml-http clean; exit 0)
 	($(MAKE) -C lib/github.com/diku-dk/sml-parse clean; exit 0)
 	$(MAKE) -C lib/github.com/diku-dk/sml-server clean
+	find . -name 'MLB' | xargs rm -rf
 	rm -rf MLB *~ .*~
 
 .PHONY: realclean

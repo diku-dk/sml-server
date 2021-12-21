@@ -31,7 +31,7 @@ structure GuessService : SERVICE = struct
                              body ^ "</p></center>")
 
   fun send path (ctx:Server.ctx) =
-      case Server.Req.getPostVarInt ctx "n" of
+      case Server.Req.postVar ctx "n" |> Option.mapPartial Int.fromString of
           NONE => page ctx "Guess a number between 0 and 100"
                        "bill_guess.jpg"
                        (mkForm path
@@ -41,7 +41,7 @@ structure GuessService : SERVICE = struct
                                 |> (fn i => (31 * i) mod 100)
                                ))
         | SOME n =>
-          case Server.Req.getPostVarInt ctx "guess" of
+          case Server.Req.postVar ctx "guess" |> Option.mapPartial Int.fromString of
               NONE => page ctx "You must type a number - try again"
                            "bill_guess.jpg"
                            (mkForm path n)
@@ -92,10 +92,10 @@ structure CountService : SERVICE = struct
 
   fun send ctx =
       let val counter =
-              (case Option.mapPartial Int.fromString (Server.Req.query ctx "counter") of
+              (case Option.mapPartial Int.fromString (Server.Req.queryVar ctx "counter") of
                    NONE => 0
                  | SOME c =>
-                   case Server.Req.query ctx "button" of
+                   case Server.Req.queryVar ctx "button" of
                        SOME "Up" => c + 1
                      | SOME "Down" => c - 1
                      | _ => c
@@ -130,7 +130,7 @@ structure RecipeService : SERVICE = struct
       else Real.toString r ^ " " ^ s ^ "s"
 
   fun send ctx =
-      case Option.map real (Server.Req.getPostVarInt ctx "persons") of
+      case Server.Req.postVar ctx "persons" |> Option.mapPartial Real.fromString of
           NONE => error ctx "You must type a number!"
        |  SOME ps =>
           Page.return ctx "Apple Pie Recipe"
@@ -197,7 +197,7 @@ structure ServerInfoService = struct
       "<tr><th>Key</th><th>Value</th></tr>",
       String.concat(foldr(fn ((k,v),acc) =>
                              "<tr><td>" :: k :: "</td><td>" :: v :: "</td></tr>" :: acc)
-                         nil (Server.Req.queryAll ctx)),
+                         nil (Server.Req.queryVars ctx)),
       "</table>"]
     |> String.concat
     )
@@ -271,13 +271,13 @@ structure CookieService = struct
       end
 
   fun sendSet path ctx =
-      let val cv = Server.Req.getPostVar ctx "cookie_value"
-          val cn = Server.Req.getPostVar ctx "cookie_name"
-          val clt = case Server.Req.getPostVarInt ctx "cookie_lt" of
+      let val cv = Server.Req.postVar ctx "cookie_value"
+          val cn = Server.Req.postVar ctx "cookie_name"
+          val clt = case Server.Req.postVar ctx "cookie_lt" |> Option.mapPartial Int.fromString of
                         NONE => 60
                       | SOME clt => clt
 
-          val cs = case Server.Req.getPostVar ctx "cookie_secure" of
+          val cs = case Server.Req.postVar ctx "cookie_secure" of
                        SOME "Yes" => true
                      | _  => false
 
@@ -295,7 +295,7 @@ structure CookieService = struct
       end
 
   fun sendDelete path ctx =
-      case Server.Req.getPostVar ctx "cookie_name" of
+      case Server.Req.postVar ctx "cookie_name" of
           SOME cn =>
           ( Server.Cookie.deleteCookie ctx {name=cn,path=SOME "/"}
           ; Server.Resp.sendRedirect ctx path
