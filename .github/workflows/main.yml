@@ -34,6 +34,8 @@ jobs:
       - uses: diku-dk/install-mlkit@v1.0.1
 
       - uses: diku-dk/install-smlpkg@v1
+        with:
+	  version: '0.1.5'
 
       - name: Set PATH
         working-directory: ${{ env.RUNHOME }}
