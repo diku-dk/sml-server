@@ -39,7 +39,7 @@ jobs:
         working-directory: ${{ env.RUNHOME }}
         run: |
           echo "[OS: $OS, HOME: $RUNHOME]"
-	  echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Check
         run: |
