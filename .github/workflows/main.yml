@@ -33,12 +33,17 @@ jobs:
 
       - name: Install smlpkg
         uses: diku-dk/install-smlpkg@HEAD
+
+      - name: Check smlpkg
         run: |
           smlpkg --version
 
       - name: Install MLKit
         if: ${{ matrix.mlcomp == 'mlkit' }}
         uses: diku-dk/install-mlkit@HEAD
+
+      - name: Check MLKit
+        if: ${{ matrix.mlcomp == 'mlkit' }}
         run: |
           mlkit --version
 
